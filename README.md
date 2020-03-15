@@ -5,7 +5,7 @@ Note that you may want to create a virtual environment to install the dependenci
 > $ pip3 install -r requirements.txt
 ## Set the flask variables
 As a minimum export the variable
-> FLASK_APP="server.py"
+> $ export FLASK_APP="server.py"
 
 You might also want to set
 > FLASK_DEBUG="True"
