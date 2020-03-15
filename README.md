@@ -9,6 +9,7 @@ As a minimum export the variable
 
 You might also want to set
 > FLASK_DEBUG="True"
+
 > FLASK_ENV="development"
 
 ## Running the server
