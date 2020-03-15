@@ -2,89 +2,47 @@ from flask import Flask, escape, request, jsonify
 from flask_cors import CORS
 import pandas
 import time
-from datetime import date, datetime
+from datetime import datetime
+
+from filedefs import ints_median_files, ints_mean_files, \
+                     ints_bounds_files, ints_filled_files
 
 app = Flask(__name__)
 CORS(app)
 
-intersections_raw_files=[
-    "./data/cut_csv/cut_K071.csv",
-    "./data/cut_csv/cut_K097.csv",
-    "./data/cut_csv/cut_K124.csv",
-    "./data/cut_csv/cut_K128.csv",
-    "./data/cut_csv/cut_K158.csv",
-    "./data/cut_csv/cut_K159.csv",
-    "./data/cut_csv/cut_K184.csv",
-    "./data/cut_csv/cut_K189.csv",
-    "./data/cut_csv/cut_K206.csv",
-    "./data/cut_csv/cut_K225.csv",
-    "./data/cut_csv/cut_K270.csv",
-    "./data/cut_csv/cut_K302.csv",
-    "./data/cut_csv/cut_K304.csv",
-    "./data/cut_csv/cut_K305.csv",
-    "./data/cut_csv/cut_K402.csv",
-    "./data/cut_csv/cut_K405.csv",
-    "./data/cut_csv/cut_K406.csv",
-    "./data/cut_csv/cut_K414.csv",
-    "./data/cut_csv/cut_K424.csv",
-    "./data/cut_csv/cut_K430.csv",
-    "./data/cut_csv/cut_K703.csv",
-    "./data/cut_csv/cut_K704.csv",
-    "./data/cut_csv/cut_K707.csv",
-    "./data/cut_csv/cut_K711.csv"
-]
+# Create a dicts that maps intersection tags (e.g. 'K124') to dataframes 
+intersections_median = { i[-8:-4]:pandas.read_csv(i) for i in ints_median_files }
+intersections_mean = { i[-8:-4]:pandas.read_csv(i) for i in ints_mean_files }
+intersections_bounds = { i[-8:-4]:pandas.read_csv(i) for i in ints_bounds_files }
+intersections_filled = { i[-8:-4]:pandas.read_csv(i) for i in ints_filled_files }
 
-# Create a dict that maps intersection tags (e.g. 'K124') to dataframes
-intersections_raw = { i[-8:-4]:pandas.read_csv(i) for i in intersections_raw_files }
-rows_raw=74676
-
-intersections_median_files = [
-    "./data/median_week/K071.csv",
-    "./data/median_week/K097.csv",
-    "./data/median_week/K124.csv",
-    "./data/median_week/K128.csv",
-    "./data/median_week/K158.csv",
-    "./data/median_week/K159.csv",
-    "./data/median_week/K184.csv",
-    "./data/median_week/K189.csv",
-    "./data/median_week/K206.csv",
-    "./data/median_week/K225.csv",
-    "./data/median_week/K270.csv",
-    "./data/median_week/K302.csv",
-    "./data/median_week/K304.csv",
-    "./data/median_week/K305.csv",
-    "./data/median_week/K402.csv",
-    "./data/median_week/K405.csv",
-    "./data/median_week/K406.csv",
-    "./data/median_week/K414.csv",
-    "./data/median_week/K424.csv",
-    "./data/median_week/K430.csv",
-    "./data/median_week/K703.csv",
-    "./data/median_week/K704.csv",
-    "./data/median_week/K707.csv",
-    "./data/median_week/K711.csv"
-]
-
-# Create a dict that maps intersection tags (e.g. 'K124') to dataframes
-intersections_median = { i[-8:-4]:pandas.read_csv(i) for i in intersections_median_files }
-rows_median = 672
-
-    
-def index(form):
-    """ 
-    Returns an index in a dataframe depending on the current time.
-    Each row in the dataframe corresponds to 15 minutes in real time, 
-    but the simulation skips to a new row every 4'th second.
-    """
-    if form == "median":
-        rows = rows_median
-    else:
-        rows = rows_raw
-    return (time.time_ns()//(4*10**9))%rows
+public_transit_file = "./data/publicTransit/disturbances_maintenanceformatted.csv"
+public_transit = pandas.read_csv(public_transit_file)
 
 @app.route('/')
 def hello():
     return f'Data is being served...'
+
+@app.route('/train', methods=["POST"])
+def get_train():
+    # the data posted must be json containg the key "date".
+    jsonData = request.get_json()
+    if not "date" in jsonData:
+        return jsonify({"data":null, "error":"date field in data not specified"})
+    data = getOngoingDisturbances(jsonData["date"])
+    print(data)
+    return jsonify({"data":data})
+
+def getOngoingDisturbances(date):
+    date = datetime.fromisoformat(date)
+    result = []
+    for row in public_transit.iterrows():
+        start = datetime.fromisoformat(row[1]['starttime'])
+        end = datetime.fromisoformat(row[1]['endtime'])
+        if start < date < end:
+            result.append(row[1].to_json())
+    return result
+
 
 
 @app.route('/<tag>/<form>')
@@ -96,29 +54,54 @@ def get_intersection(tag,form):
         return intersections_raw[tag].iloc[idx].to_json()
 
 @app.route('/real', methods=["POST"])
-def get_real_day():
+def get_real():
+    # the data posted must be json containg the key "date".
+    jsonData = request.get_json()
+    if not "date" in jsonData:
+        return jsonify({"data":None, "error":"date field in data not specified"})
+    date = jsonData["date"]
+    idx = dateToIndex(date)
+    if idx >= len(intersections_filled['K071']):
+        print("No data for date")
+        return jsonify({"error":"No such date in data", "data":None})
+    data = {key:intersection.iloc[idx,1:].to_json() for key,intersection in intersections_filled.items()}
+    return jsonify({"index":idx, "date":date, "data":data})
+
+@app.route('/bounds', methods=["POST"])
+def get_bounds():
     # the data posted must be json containg the key "date".
     jsonData = request.get_json()
     if not "date" in jsonData:
         return jsonify({"data":null, "error":"date field in data not specified"})
     date = jsonData["date"]
     idx = dateToIndex(date)
-    data = {key:intersection.iloc[idx,2:].to_json() for key,intersection in intersections_raw.items()}
+    data = {key:(intersection.iloc[idx,1:]*100).to_json() for key,intersection in intersections_bounds.items()}
     return jsonify({"index":idx, "date":date, "data":data})
 
 @app.route('/median', methods=["POST"])
-def get_median_day():
+def get_median():
     # the data posted must be json containg the key "date".
     jsonData = request.get_json()
     if not "date" in jsonData:
         return jsonify({"data":null, "error":"date field in data not specified"})
     date = jsonData["date"]
     idx = dateToIndex(date) % 672
-    data = {key:intersection.iloc[idx,2:].to_json() for key,intersection in intersections_median.items()}
+    data = {key:intersection.iloc[idx,1:].to_json() for key,intersection in intersections_median.items()}
+    return jsonify({"index":idx, "date":date, "data":data})
+
+@app.route('/mean', methods=["POST"])
+def get_mean():
+    # the data posted must be json containg the key "date".
+    jsonData = request.get_json()
+    if not "date" in jsonData:
+        return jsonify({"data":null, "error":"date field in data not specified"})
+    date = jsonData["date"]
+    idx = dateToIndex(date) % 672
+    data = {key:intersection.iloc[idx,1:].to_json() for key,intersection in intersections_mean.items()}
     return jsonify({"index":idx, "date":date, "data":data})
 
 def dateToIndex(dateString):
-    # The first entry in every cut_csv file has the time stamp '2017-02-06 13:15:00'.
+    # The first entry in every filled_ file has the time stamp '2017-02-06 13:15:00'.
     startDate = datetime(2017, 2, 6, hour=13, minute=15)
     getDate = datetime.fromisoformat(dateString)
     delta = getDate-startDate
