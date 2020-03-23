@@ -53,6 +53,20 @@ def get_intersection(tag,form):
     else:
         return intersections_raw[tag].iloc[idx].to_json()
 
+@app.route('/real24h', methods=["POST"])
+def get_real_24h():
+    # the data posted must be json containg the key "date".
+    jsonData = request.get_json()
+    if not "date" in jsonData:
+        return jsonify({"data":None, "error":"date field in data not specified"})
+    date = jsonData["date"]
+    idx = dateToIndex(date)
+    if idx >= len(intersections_filled['K071']):
+        print("No data for date")
+        return jsonify({"error":"No such date in data", "data":None})
+    data = {key:intersection.iloc[idx:idx+672,1:].to_json() for key,intersection in intersections_filled.items()}
+    return jsonify({"index":idx, "date":date, "data":data})
+
 @app.route('/real', methods=["POST"])
 def get_real():
     # the data posted must be json containg the key "date".
