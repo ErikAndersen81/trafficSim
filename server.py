@@ -1,6 +1,7 @@
 from flask import Flask, escape, request, jsonify, make_response
 from flask_cors import CORS
 import pandas as pd
+import numpy as np
 import time
 from datetime import datetime, timedelta
 import math
@@ -65,16 +66,10 @@ def get_data():
             week_offset = bool_mask.idxmax() % 672
             first_idx = bool_mask.idxmax()
             last_idx =  first_idx + interval
-            bools =  bool_mask.iloc[first_idx:last_idx]
-            bools = bools.reset_index(drop=True)
-            weeks = 1
-            if True in bool_mask[::672].value_counts():
-                weeks = bool_mask[::672].value_counts()[True] + 1
+            weeks = last_idx // 672 + 1
             for k in intersections:
                 df = Intersections.__dict__[datatype][k]
-                df = pd.concat([df for i in range(weeks)], ignore_index=True)
-                df = df.iloc[first_idx:last_idx].reset_index(drop=True)
-                df = df[bools]
+                df = df.iloc[np.tile(np.arange(672), weeks)].iloc[first_idx:last_idx].reset_index(drop=True)
                 if simplified:
                     df = df.sum(axis=1)
                     data['maxVal'] = max(df.max(), data['maxVal'])
@@ -129,6 +124,8 @@ def get_data():
         data['disturbances'] = rows
     data['intersections'] = ints_data
     data['interval'] = interval
+    if pd.isna(data['maxVal']):
+        data['maxVal'] = 0
     return jsonify(**data)
 
 @app.route('/')
