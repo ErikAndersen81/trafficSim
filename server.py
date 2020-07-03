@@ -134,4 +134,4 @@ def hello():
 
 if __name__=="__main__":
     Intersections() # load data for the intersections
-    app.run(host='192.168.1.86')
+    app.run()
