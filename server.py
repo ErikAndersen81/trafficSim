@@ -28,6 +28,15 @@ public_transit = pd.read_csv(public_transit_file, parse_dates=['starttime','endt
     
 @app.route('/data', methods=['POST'])
 def get_data():
+    """
+    starttime      Start of timeframe
+    endtime        End of timeframe
+    
+    intersections  A list of intersections to retrieve. Fields to include:
+                   granularity    Level of detail to include for the intersection. Allowed: 'lanes', 'roads', 'intersections', or 'coords'
+                   
+    
+    """
     jsonData = request.get_json()
     start = ""
     end = ""
