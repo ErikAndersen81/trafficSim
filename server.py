@@ -36,57 +36,33 @@ def get_json_data():
     
 @app.route('/data', methods=['POST'])
 def get_data():
+    data = dict()
     Intersections.maxVal = 0
     json_data = get_json_data()
-    timeframe = Timeframe(json_data['starttime'], json_data['endtime'])
     if not json_data:
         return make_response(jsonify({"error":"Invalid JSON data!"}),401)
-    bool_mask = ((Intersections.dates >= json_data['starttime']) & (Intersections.dates <= json_data['endtime']))
-    data = dict()
-    ints_data = {intersection:dict() for intersection in json_data['intersections']}
-    if 'deviant' in json_data['datatypes']:
-        ints_data = {intersection:dict() for intersection in Intersections.__dict__['aggregated'].keys()}
+    
+    timeframe = Timeframe(json_data['starttime'], json_data['endtime'])
+    Intersections.set_timeframe(timeframe)
+    Intersections.set_intersections(json_data['intersections'])
+    
     simplified = False
     if 'simplified' in json_data['datatypes']:
         json_data['datatypes'].remove('simplified')
         simplified = True
-    dates = Intersections.dates[bool_mask]
-    dates = dates.astype(str)
-    data['dates'] = list(dates)
-    data['maxVal'] = 0
+    
+    
     for datatype in json_data['datatypes']:
         if datatype == "mean":
-            mean = Intersections.get_mean(json_data['intersections'], timeframe, simplified)
-            for k,v in mean.items():
-                ints_data[k]['mean']=v
+            Intersections.calculate_mean(simplified)
         elif datatype == "median":
-            median = Intersections.get_median(json_data['intersections'], timeframe, simplified)
-            for k,v in median.items():
-                ints_data[k]['median']=v
+            Intersections.calculate_median(simplified)
         elif datatype == "deviant": # This is standard and should be sent no matter what to show circles on the map
-            for k in Intersections.__dict__[datatype].keys():
-                df = Intersections.__dict__[datatype][k][bool_mask]
-                ints_data[k][datatype] = sum(df['0'])
+            Intersections.calculate_deviant()
+        elif datatype == 'aggregated':
+            Intersections.calculate_aggregated(simplified)
 
-                df = Intersections.__dict__['aboves'][k][bool_mask]
-                ints_data[k]['aboves'] = int(df.sum().iloc[0])
-                df = Intersections.__dict__['belows'][k][bool_mask]
-                ints_data[k]['belows'] = int(df.sum().iloc[0])
-                
-                df = Intersections.__dict__['aggregated'][k][bool_mask]
-                ints_data[k]['size'] = df.fillna(value=0).sum().sum()
-        else:
-            for k in json_data['intersections']:
-                df = Intersections.__dict__[datatype][k][bool_mask]
-                if simplified:
-                    df = df.sum(axis=1)
-                    data['maxVal'] = max(df.max(), data['maxVal'])
-                    ints_data[k][datatype] = {'summed':list(df)}
-                else:
-                    data['maxVal'] = max(df.max().max(), data['maxVal'])
-                    df = df.where(pd.notnull(df), None)
-                    cols = { col:list(df[col]) for col in df }
-                    ints_data[k][datatype] = cols
+    
             
     if json_data['disturbances']:
         starts_in_timeframe = (public_transit.starttime >= json_data['starttime']) & (public_transit.starttime < json_data['endtime'])
@@ -107,9 +83,12 @@ def get_data():
             lst = [row.location, row.type, row.starttime, row.endtime, row.x1, row.x2]
             rows.append(lst)
         data['disturbances'] = rows
-    data['intersections'] = ints_data
+        
+    data['intersections'] = Intersections.get_intersections()
     data['interval'] = json_data['interval']
-    data['maxVal'] = max(Intersections.maxVal, data['maxVal'])
+    data['maxVal'] = Intersections.maxVal
+    data['dates'] = timeframe.get_dates()
+    
     if pd.isna(data['maxVal']):
         data['maxVal'] = 0
     return jsonify(**data)

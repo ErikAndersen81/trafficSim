@@ -13,9 +13,13 @@ class Timeframe:
         self.last_idx =  self.first_idx + self.bool_mask.sum()
         self.weeks = self.last_idx // 672 + 1
 
-    def populate(self, df):
-        """
-        Takes a Dataframe of one weeks length and uses it as a pattern to fill a Dataframe corresponding to the timeframe.
-        """
-        weeks_df = df.iloc[np.tile(np.arange(672), self.weeks)]
-        return weeks_df.iloc[self.first_idx:self.last_idx].reset_index(drop=True)
+    def trim(self, df):
+        if len(df) == 672:
+            # The dataframe has one week of data, so duplicate it if needed before trimming
+            weeks_df = df.iloc[np.tile(np.arange(672), self.weeks)]
+            return weeks_df.iloc[self.first_idx:self.last_idx].reset_index(drop=True)
+        else:
+            return df[self.bool_mask]
+
+    def get_dates(self):
+        return self.dates
