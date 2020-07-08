@@ -65,17 +65,10 @@ def get_data():
     
             
     if json_data['disturbances']:
-        starts_in_timeframe = (public_transit.starttime >= json_data['starttime']) & (public_transit.starttime < json_data['endtime'])
-        ends_in_timeframe = (public_transit.endtime >= json_data['starttime']) & (public_transit.endtime < json_data['endtime'])
-        df = public_transit[starts_in_timeframe | ends_in_timeframe]
-        # Calculate the offset from start in 15 minutes
-        x1 = (df['starttime']-json_data['starttime'])//pd.Timedelta(minutes=15)
-        # ensure we don't have a negative offset s.t. the graph doesn't overflow to the left.
-        df = df.assign(x1=x1.map(lambda x: max(x,0)))
-        # offset for endtime
-        x2 = (df['endtime']-json_data['starttime'])//pd.Timedelta(minutes=15)
-        # shouldn't be bigger than the interval s.t. graph doesn't overflow to the right
-        df = df.assign(x2=x2.map(lambda x: min(x,json_data['interval'])))
+        df = timeframe.in_timeframe(public_transit)
+        x1 = timeframe.datetimes_to_idxs(df['starttime'])
+        x2 = timeframe.datetimes_to_idxs(df['endtime'])
+        df = df.assign(x1=x1, x2=x2)
         df.loc[:,'starttime'] = df['starttime'].astype(str)
         df.loc[:,'endtime'] = df['endtime'].astype(str)
         rows = []
