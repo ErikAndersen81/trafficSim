@@ -1,60 +1,15 @@
-from flask import Flask, escape, request, jsonify, make_response
+from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS
+from intersections import Intersections
+from timeframe import Timeframe
 import pandas as pd
-import numpy as np
-import time
-from datetime import datetime, timedelta
-import math
-import os
 
 app = Flask(__name__)
 CORS(app)
 
-class Intersections:
-    """ This singleton class holds references to the data for intersections """
-    _datatypes = dict()
-    maxVal = 0
-    
-    def __init__(self):
-        os.chdir("data")
-        subdirs = ['mean_csv', 'median_csv', 'aggregated_csv', 'deviant_csv', 'belows_csv', 'aboves_csv']
-        for subdir in subdirs:
-            os.chdir(subdir)
-            setattr(Intersections, subdir[:-4], { i[:-4]:pd.read_csv(i) for i in os.listdir() })
-            Intersections._datatypes[subdir[:-4]] = { i[:-4]:pd.read_csv(i) for i in os.listdir() }
-            os.chdir("..")
-        setattr(Intersections, "dates", pd.read_csv("dates.csv", parse_dates=[0]).iloc[:,0])
-        os.chdir("..")
-        
-    def get_mean(intersections, timeframe, simplified):
-        mean = dict()
-        for k in intersections:
-            df = Intersections._datatypes['mean'][k]
-            df = timeframe.populate(df)
-            mean[k] = Intersections._simplify_or_not(df, simplified)
-        return mean
-
-    def get_median(intersections, timeframe, simplified):
-        median = dict()
-        for k in intersections:
-            df = Intersections._datatypes['median'][k]
-            df = timeframe.populate(df)
-            median[k] = Intersections._simplify_or_not(df, simplified)
-        return median
-
-    def _simplify_or_not(df, simplified):
-        if simplified:
-            df = df.sum(axis=1)
-            Intersections.maxVal = max(df.max(), Intersections.maxVal)
-            return {'summed':list(df)}
-        else:
-            Intersections.maxVal = max(df.max().max(), Intersections.maxVal)
-            cols = { col:list(df[col]) for col in df }
-            return cols
 
 public_transit_file = "./data/publicTransit/disturbances_maintenanceformatted.csv"
 public_transit = pd.read_csv(public_transit_file, parse_dates=['starttime','endtime'])
-
 
 def get_json_data():
     """ Retrieves the attached json data and returns it (or default values) in a dictionary """
@@ -78,27 +33,6 @@ def get_json_data():
     except:
         print("Exception Caught")
         return False
-
-
-class Timeframe:
-    _dates = pd.read_csv("./data/dates.csv", parse_dates=[0]).iloc[:,0]
-    def __init__(self, starttime, endtime):
-        self.bool_mask = ((Timeframe._dates >= starttime) & (Timeframe._dates <= endtime))
-        self.starttime = starttime
-        self.endtime = endtime
-        self.dates = list(Timeframe._dates[self.bool_mask].astype(str))
-        self.week_offset = self.bool_mask.idxmax() % 672
-        self.first_idx = self.bool_mask.idxmax()
-        self.last_idx =  self.first_idx + self.bool_mask.sum()
-        self.weeks = self.last_idx // 672 + 1
-
-    def populate(self, df):
-        """
-        Takes a Dataframe of one weeks length and uses it as a pattern to fill a Dataframe corresponding to the timeframe.
-        """
-        weeks_df = df.iloc[np.tile(np.arange(672), self.weeks)]
-        return weeks_df.iloc[self.first_idx:self.last_idx].reset_index(drop=True)
-
     
 @app.route('/data', methods=['POST'])
 def get_data():
