@@ -57,7 +57,7 @@ def get_data():
             Intersections.calculate_mean(simplified)
         elif datatype == "median":
             Intersections.calculate_median(simplified)
-        elif datatype == "deviant": # This is standard and should be sent no matter what to show circles on the map
+        elif datatype == "deviant": 
             Intersections.calculate_deviant()
         elif datatype == 'aggregated':
             Intersections.calculate_aggregated(simplified)
@@ -89,6 +89,14 @@ def get_data():
 @app.route('/')
 def hello():
     return f'Data is being served...'
+
+
+@app.route('/markers', methods=['POST'])
+def get_markers():
+    data = dict()
+    Intersections.maxVal = 0
+    json_data = get_json_data()
+
 
 if __name__=="__main__":
     Intersections() # load data for the intersections
