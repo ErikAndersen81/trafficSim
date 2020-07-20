@@ -1,6 +1,5 @@
 from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS
-from intersections import Intersections
 from database import DB
 from timeframe import Timeframe
 import pandas as pd
