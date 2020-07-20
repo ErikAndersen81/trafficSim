@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 
 class Timeframe:
+    # TODO: Fix wrong offset for mean and median
     _dates = pd.read_csv("./data/dates.csv", parse_dates=[0]).iloc[:,0]
     def __init__(self, starttime, endtime):
         self.bool_mask = ((Timeframe._dates >= starttime) & (Timeframe._dates <= endtime))
