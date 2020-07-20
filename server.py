@@ -68,9 +68,11 @@ def get_data():
             df = DB.mean.loc[:, json_data['intersections']]
         elif datatype == 'median':
             df = DB.median.loc[:, json_data['intersections']]
+        df = timeframe.trim(df)
         prep_for_jsonify(df, datatype)
         
-    df = DB.full.loc[timeframe.first_idx:timeframe.last_idx, json_data['intersections']]
+    df = DB.full.loc[:, json_data['intersections']]
+    df = timeframe.trim(df)
     prep_for_jsonify(df, 'aggregated')
 
     if json_data['disturbances']:

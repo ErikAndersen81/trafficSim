@@ -9,7 +9,6 @@ if os.getenv('TRAFFIC_DATA') is None:
     os.environ['TRAFFIC_DATA']='/home/erik/trafficData'
 
 class Timeframe:
-    # TODO: Fix wrong offset for mean and median
     _dates = pd.read_csv(os.environ['TRAFFIC_DATA'] + "dates/dates.csv", parse_dates=[0]).iloc[:,0]
     def __init__(self, starttime, endtime):
         self.bool_mask = ((Timeframe._dates >= starttime) & (Timeframe._dates <= endtime))
@@ -18,16 +17,17 @@ class Timeframe:
         self.dates = list(Timeframe._dates[self.bool_mask].astype(str))
         self.indices = len(self.dates)
         self.week_offset = self.bool_mask.idxmax() % 672
-        self.first_idx = self.bool_mask.idxmax()
-        self.last_idx =  self.first_idx + self.bool_mask.sum()
-        self.weeks = self.last_idx // 672 + 1
+        first_idx = self.bool_mask.idxmax()
+        last_idx = first_idx + self.bool_mask.sum()
+        self.weeks = last_idx // 672 + 1
 
     def trim(self, df):
         """ Trims the dataframe (with cleaned intersection data) given as input to current timeframe """
-        if len(df) == 672:
+        if df.shape[0] == 672:
             # The dataframe has one week of data, so duplicate it if needed before trimming
             weeks_df = df.iloc[np.tile(np.arange(672), self.weeks)]
-            return weeks_df.iloc[self.first_idx:self.last_idx].reset_index(drop=True)
+            start, end = self.week_offset, self.week_offset + self.indices
+            return weeks_df.iloc[start:end]
         else:
             return df[self.bool_mask]
 
