@@ -86,9 +86,7 @@ def get_data():
             rows.append(lst)
         data['disturbances'] = rows
         
-    # data['intersections'] = Intersections.get_intersections()
     data['interval'] = json_data['interval']
-    # data['maxVal'] = Intersections.maxVal
     data['dates'] = timeframe.get_dates()
 
     
@@ -120,6 +118,5 @@ def get_coordinates():
     return jsonify(DB.coordinates.to_dict(orient='index'))
     
 if __name__=="__main__":
-    Intersections() # load data for the intersections
     DB()
     app.run()

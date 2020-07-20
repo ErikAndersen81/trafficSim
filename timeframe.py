@@ -1,9 +1,16 @@
 import pandas as pd
 import numpy as np
+import os
+
+if os.getenv('TRAFFIC_DATA') is None:
+    # when using activate from pyvenv.el the variable isn't set.
+    # iow this is a workaround for a problem not related to this project.
+    print("Setting Environment Variable TRAFFIC_DATA to /home/erik/trafficData")
+    os.environ['TRAFFIC_DATA']='/home/erik/trafficData'
 
 class Timeframe:
     # TODO: Fix wrong offset for mean and median
-    _dates = pd.read_csv("./data/dates.csv", parse_dates=[0]).iloc[:,0]
+    _dates = pd.read_csv(os.environ['TRAFFIC_DATA'] + "dates/dates.csv", parse_dates=[0]).iloc[:,0]
     def __init__(self, starttime, endtime):
         self.bool_mask = ((Timeframe._dates >= starttime) & (Timeframe._dates <= endtime))
         self.starttime = starttime
