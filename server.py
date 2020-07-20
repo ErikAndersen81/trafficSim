@@ -35,30 +35,44 @@ def get_json_data():
 @app.route('/data', methods=['POST'])
 def get_data():
     data = dict()
-    Intersections.maxVal = 0
+    data['pathData'] = dict()
+    data['maxVal'] = 0
     json_data = get_json_data()
     if not json_data:
         return make_response(jsonify({"error":"Invalid JSON data!"}),401)
     
     timeframe = Timeframe(json_data['starttime'], json_data['endtime'])
-    Intersections.set_timeframe(timeframe)
-    Intersections.set_intersections(json_data['intersections'])
+
+    aggregated = False
+    if 'aggregated' in json_data['datatypes']:
+        json_data['datatypes'].remove('aggregated')
+        aggregated = True
+
+    def prep_for_jsonify(df, key):
+        if df.empty:
+            data['pathData'][key] = dict()
+        else:
+            if aggregated:
+                df = df.sum(axis=1, level=0, skipna=True)
+                data['maxVal'] = max(data['maxVal'] , df.max().max())
+                df = df.where(pd.notnull(df), None)
+                data['pathData'][key] = {k:{k:df.loc[:,k].to_list()} for k in list(set(df.columns.get_level_values(0)))}
+            else:
+                data['maxVal'] = max(data['maxVal'] , df.max(skipna=True).max())
+                # Replace NaN with None s.t. we get proper null values in the JSON once we jsonify the df.
+                df = df.where(pd.notnull(df), None)
+                # Build a dictionary from the multicolumn df
+                data['pathData'][key] = {k:df.loc[:,k].to_dict(orient='list') for k in list(set(df.columns.get_level_values(0)))}
     
-    simplified = False
-    if 'simplified' in json_data['datatypes']:
-        json_data['datatypes'].remove('simplified')
-        simplified = True
-    
-    mean = None
     for datatype in json_data['datatypes']:
-        if datatype == "mean":
-            Intersections.calculate_mean(simplified)
-        elif datatype == "median":
-            Intersections.calculate_median(simplified)
-        elif datatype == "deviant": 
-            Intersections.calculate_deviant()
-        elif datatype == 'aggregated':
-            Intersections.calculate_aggregated(simplified)
+        if datatype == 'mean':
+            df = DB.mean.loc[:, json_data['intersections']]
+        elif datatype == 'median':
+            df = DB.median.loc[:, json_data['intersections']]
+        prep_for_jsonify(df, datatype)
+        
+    df = DB.full.loc[timeframe.first_idx:timeframe.last_idx, json_data['intersections']]
+    prep_for_jsonify(df, 'aggregated')
 
     if json_data['disturbances']:
         df = timeframe.in_timeframe(DB.disturbances)
@@ -73,15 +87,16 @@ def get_data():
             rows.append(lst)
         data['disturbances'] = rows
         
-    data['intersections'] = Intersections.get_intersections()
+    # data['intersections'] = Intersections.get_intersections()
     data['interval'] = json_data['interval']
-    data['maxVal'] = Intersections.maxVal
+    # data['maxVal'] = Intersections.maxVal
     data['dates'] = timeframe.get_dates()
+
     
     if pd.isna(data['maxVal']):
         data['maxVal'] = 0
     return jsonify(**data)
-
+            
 @app.route('/')
 def hello():
     return f'Data is being served...'

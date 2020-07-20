@@ -8,6 +8,7 @@ class DB:
 
     full:         df with road data
     mean:         df with mean of road data
+    median:       df with median of road data
     sd:           df with standard deviation (SD) of road data
     dist_sd:      df with distance from mean relative to SD of road data
     datetime:     Series of dates matching road data indices
@@ -33,6 +34,7 @@ class DB:
         # axis 0, ignoring NaNs.
         reshaped = df.values.reshape(-1,672,df.shape[1])
         DB.mean = pd.DataFrame(np.nanmean(reshaped,0), columns=df.columns)
+        DB.median = pd.DataFrame(np.nanmedian(reshaped,0), columns=df.columns)
         DB.sd = pd.DataFrame(np.nanstd(reshaped,0), columns=df.columns)
 
         # Calculate distance from the mean in terms of standard deviation
