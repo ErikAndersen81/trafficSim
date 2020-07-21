@@ -16,14 +16,14 @@ def get_json_data():
         starttime = pd.to_datetime(jsonData.get("starttime", "2015-01-01 00:00:00"))
         endtime = pd.to_datetime(jsonData.get("endtime", "2015-02-01 00:00:00"))
         interval = int((endtime-starttime).total_seconds()/(60*15))
-        datatypes = jsonData.get("datatypes", [])
+        graph_options = jsonData.get("graph_options", [])
         intersections = jsonData.get("intersections", [])
         disturbances = bool(jsonData.get("disturbances", True))
         outliers = bool(jsonData.get("outliers", True))
         return {'starttime':starttime,
                 'endtime':endtime,
                 'interval':interval,
-                'datatypes':datatypes,
+                'graph_options':graph_options,
                 'intersections':intersections,
                 'disturbances':disturbances,
                 'outliers':outliers
@@ -44,8 +44,8 @@ def get_data():
     timeframe = Timeframe(json_data['starttime'], json_data['endtime'])
 
     aggregated = False
-    if 'aggregated' in json_data['datatypes']:
-        json_data['datatypes'].remove('aggregated')
+    if 'aggregated' in json_data['graph_options']:
+        json_data['graph_options'].remove('aggregated')
         aggregated = True
 
     def prep_for_jsonify(df, key):
@@ -64,30 +64,31 @@ def get_data():
                 # Build a dictionary from the multicolumn df
                 data['pathData'][key] = {k:df.loc[:,k].to_dict(orient='list') for k in list(set(df.columns.get_level_values(0)))}
     
-    for datatype in json_data['datatypes']:
-        if datatype == 'mean':
+    for graph_option in json_data['graph_options']:
+        if graph_option == 'disturbances':
+            df = timeframe.in_timeframe(DB.disturbances)
+            x1 = timeframe.datetimes_to_idxs(df['starttime'])
+            x2 = timeframe.datetimes_to_idxs(df['endtime'])
+            df = df.assign(x1=x1, x2=x2)
+            df.loc[:,'starttime'] = df['starttime'].astype(str)
+            df.loc[:,'endtime'] = df['endtime'].astype(str)
+            rows = []
+            for idx, row in df.iterrows():
+                lst = [row.location, row.type, row.starttime, row.endtime, row.x1, row.x2]
+                rows.append(lst)
+            data['disturbances'] = rows
+            continue
+        if graph_option == 'mean':
             df = DB.mean.loc[:, json_data['intersections']]
-        elif datatype == 'median':
+        elif graph_option == 'median':
             df = DB.median.loc[:, json_data['intersections']]
         df = timeframe.trim(df)
-        prep_for_jsonify(df, datatype)
+        prep_for_jsonify(df, graph_option)
         
     df = DB.full.loc[:, json_data['intersections']]
     df = timeframe.trim(df)
     prep_for_jsonify(df, 'aggregated')
 
-    if json_data['disturbances']:
-        df = timeframe.in_timeframe(DB.disturbances)
-        x1 = timeframe.datetimes_to_idxs(df['starttime'])
-        x2 = timeframe.datetimes_to_idxs(df['endtime'])
-        df = df.assign(x1=x1, x2=x2)
-        df.loc[:,'starttime'] = df['starttime'].astype(str)
-        df.loc[:,'endtime'] = df['endtime'].astype(str)
-        rows = []
-        for idx, row in df.iterrows():
-            lst = [row.location, row.type, row.starttime, row.endtime, row.x1, row.x2]
-            rows.append(lst)
-        data['disturbances'] = rows
         
     data['interval'] = json_data['interval']
     data['dates'] = timeframe.get_dates()
