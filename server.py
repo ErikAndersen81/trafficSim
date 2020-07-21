@@ -3,6 +3,7 @@ from flask_cors import CORS
 from database import DB
 from timeframe import Timeframe
 import pandas as pd
+import numpy as np
 
 app = Flask(__name__)
 CORS(app)
@@ -106,14 +107,18 @@ def get_markers():
     json_data = get_json_data()
     timeframe = Timeframe(json_data['starttime'], json_data['endtime'])
     df = timeframe.trim(DB.full)
-    d_sum = df.groupby(axis=1, level=0).sum().sum().to_dict()
+    d_sum = df.groupby(axis=1, level=0).apply(np.nansum)
     df = timeframe.trim(DB.dist_sd)
+    print(df)
     col_count = df.columns.get_level_values(0).value_counts()
+    print(col_count)
     abs_above = (df > 3).groupby(axis=1, level=0).sum()
-    pct_above = ((abs_above / col_count).sum() / df.shape[0]).round(decimals=2)
+    print(df>3)
+    print(abs_above)
+    pct_above = (abs_above.sum(axis=0) / (df.shape[0] * col_count)).round(decimals=2)
     abs_below = (df < -3).groupby(axis=1, level=0).sum()
-    pct_below = ((abs_below / col_count).sum() / df.shape[0]).round(decimals=2)
-    return jsonify({"total_passings":d_sum, "pct_above":pct_above.to_dict(), "pct_below":pct_below.to_dict(), "measurements":timeframe.indices})
+    pct_below = ((abs_below / col_count).apply(np.nansum) / df.shape[0]).round(decimals=2)
+    return jsonify({"total_passings":d_sum.to_dict(), "pct_above":pct_above.to_dict(), "pct_below":pct_below.to_dict(), "measurements":timeframe.indices})
 
 @app.route('/coordinates')
 def get_coordinates():

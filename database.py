@@ -31,15 +31,15 @@ class DB:
         DB.full = df
         # Reshape the DataFrame into a 3D numpy array (weeks at axis 0)
         # and use it to calculate the mean and standard deviation over
-        # axis 0, ignoring NaNs.
+        # axis 0, ignoring NaNs. -1 signifies that the size of this axis is inferred.
         reshaped = df.values.reshape(-1,672,df.shape[1])
-        DB.mean = pd.DataFrame(np.nanmean(reshaped,0), columns=df.columns)
-        DB.median = pd.DataFrame(np.nanmedian(reshaped,0), columns=df.columns)
-        DB.sd = pd.DataFrame(np.nanstd(reshaped,0), columns=df.columns)
+        DB.mean = pd.DataFrame(np.nanmean(reshaped,axis=0), columns=df.columns)
+        DB.median = pd.DataFrame(np.nanmedian(reshaped,axis=0), columns=df.columns)
+        DB.sd = pd.DataFrame(np.nanstd(reshaped,axis=0), columns=df.columns)
 
         # Calculate distance from the mean in terms of standard deviation
-        df = (DB.full.values - DB.mean.values[0]) / DB.sd.values[0]
-        DB.dist_sd = pd.DataFrame(df, columns = DB.full.columns)
+        df = (reshaped - DB.mean.values) / DB.sd.values
+        DB.dist_sd = pd.DataFrame(df.reshape(DB.full.shape), columns = DB.full.columns)
 
         # load datetimes matching the rows in DB.full
         os.chdir(DB.data_dir)
