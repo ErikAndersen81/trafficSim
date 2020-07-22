@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 
 app = Flask(__name__)
+DB()
 CORS(app)
 
 
@@ -125,6 +126,3 @@ def get_markers():
 def get_coordinates():
     return jsonify(DB.coordinates.to_dict(orient='index'))
     
-if __name__=="__main__":
-    DB()
-    app.run()
