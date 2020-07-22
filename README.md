@@ -24,5 +24,4 @@ You might also want to set
 
 ### Running the server
 Start the server by navigating to the root directory of the application and type
-> $ python3 server.py
-    
+> flask run
