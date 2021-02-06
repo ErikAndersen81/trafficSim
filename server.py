@@ -14,25 +14,28 @@ def get_json_data():
     """ Retrieves the attached json data and returns it (or default values) in a dictionary """
     jsonData = request.get_json()
     try:
-        starttime = pd.to_datetime(jsonData.get("starttime", "2015-01-01 00:00:00"))
-        endtime = pd.to_datetime(jsonData.get("endtime", "2015-02-01 00:00:00"))
+        starttime = pd.to_datetime(jsonData.get(
+            "starttime", "2015-01-01 00:00:00"))
+        endtime = pd.to_datetime(jsonData.get(
+            "endtime", "2015-02-01 00:00:00"))
         interval = int((endtime-starttime).total_seconds()/(60*15))
         graph_options = jsonData.get("graph_options", [])
         intersections = jsonData.get("intersections", [])
         disturbances = bool(jsonData.get("disturbances", True))
         outliers = bool(jsonData.get("outliers", True))
-        return {'starttime':starttime,
-                'endtime':endtime,
-                'interval':interval,
-                'graph_options':graph_options,
-                'intersections':intersections,
-                'disturbances':disturbances,
-                'outliers':outliers
+        return {'starttime': starttime,
+                'endtime': endtime,
+                'interval': interval,
+                'graph_options': graph_options,
+                'intersections': intersections,
+                'disturbances': disturbances,
+                'outliers': outliers
                 }
-    except:
-        print("Exception Caught")
+    except Exception as e:
+        print(e)
         return False
-    
+
+
 @app.route('/data', methods=['POST'])
 def get_data():
     data = dict()
@@ -40,8 +43,7 @@ def get_data():
     data['maxVal'] = 0
     json_data = get_json_data()
     if not json_data:
-        return make_response(jsonify({"error":"Invalid JSON data!"}),401)
-    
+        return make_response(jsonify({"error": "Invalid JSON data!"}), 401)
     timeframe = Timeframe(json_data['starttime'], json_data['endtime'])
 
     aggregated = False
@@ -55,27 +57,30 @@ def get_data():
         else:
             if aggregated:
                 df = df.sum(axis=1, level=0, skipna=True)
-                data['maxVal'] = max(data['maxVal'] , df.max().max())
+                data['maxVal'] = max(data['maxVal'], df.max().max())
                 df = df.where(pd.notnull(df), None)
-                data['pathData'][key] = {k:{k:df.loc[:,k].to_list()} for k in list(set(df.columns.get_level_values(0)))}
+                data['pathData'][key] = {k: {k: df.loc[:, k].to_list()} for k in list(
+                    set(df.columns.get_level_values(0)))}
             else:
-                data['maxVal'] = max(data['maxVal'] , df.max(skipna=True).max())
+                data['maxVal'] = max(data['maxVal'], df.max(skipna=True).max())
                 # Replace NaN with None s.t. we get proper null values in the JSON once we jsonify the df.
                 df = df.where(pd.notnull(df), None)
                 # Build a dictionary from the multicolumn df
-                data['pathData'][key] = {k:df.loc[:,k].to_dict(orient='list') for k in list(set(df.columns.get_level_values(0)))}
-    
+                data['pathData'][key] = {k: df.loc[:, k].to_dict(
+                    orient='list') for k in list(set(df.columns.get_level_values(0)))}
+
     for graph_option in json_data['graph_options']:
         if graph_option == 'disturbances':
             df = timeframe.in_timeframe(DB.disturbances)
             x1 = timeframe.datetimes_to_idxs(df['starttime'])
             x2 = timeframe.datetimes_to_idxs(df['endtime'])
             df = df.assign(x1=x1, x2=x2)
-            df.loc[:,'starttime'] = df['starttime'].astype(str)
-            df.loc[:,'endtime'] = df['endtime'].astype(str)
+            df.loc[:, 'starttime'] = df['starttime'].astype(str)
+            df.loc[:, 'endtime'] = df['endtime'].astype(str)
             rows = []
-            for idx, row in df.iterrows():
-                lst = [row.location, row.type, row.starttime, row.endtime, row.x1, row.x2]
+            for _, row in df.iterrows():
+                lst = [row.location, row.type, row.starttime,
+                       row.endtime, row.x1, row.x2]
                 rows.append(lst)
             data['disturbances'] = rows
             continue
@@ -85,20 +90,19 @@ def get_data():
             df = DB.median.loc[:, json_data['intersections']]
         df = timeframe.trim(df)
         prep_for_jsonify(df, graph_option)
-        
+
     df = DB.full.loc[:, json_data['intersections']]
     df = timeframe.trim(df)
     prep_for_jsonify(df, 'aggregated')
 
-        
     data['interval'] = json_data['interval']
     data['dates'] = timeframe.get_dates()
 
-    
     if pd.isna(data['maxVal']):
         data['maxVal'] = 0
     return jsonify(**data)
-            
+
+
 @app.route('/')
 def hello():
     return f'Data is being served...'
@@ -111,18 +115,30 @@ def get_markers():
     df = timeframe.trim(DB.full)
     d_sum = df.groupby(axis=1, level=0).apply(np.nansum)
     df = timeframe.trim(DB.dist_sd)
-    print(df)
     col_count = df.columns.get_level_values(0).value_counts()
-    print(col_count)
     abs_above = (df > 3).groupby(axis=1, level=0).sum()
-    print(df>3)
-    print(abs_above)
-    pct_above = (abs_above.sum(axis=0) / (df.shape[0] * col_count)).round(decimals=2)
+    pct_above = (abs_above.sum(axis=0) /
+                 (df.shape[0] * col_count)).round(decimals=2)
     abs_below = (df < -3).groupby(axis=1, level=0).sum()
-    pct_below = ((abs_below / col_count).apply(np.nansum) / df.shape[0]).round(decimals=2)
-    return jsonify({"total_passings":d_sum.to_dict(), "pct_above":pct_above.to_dict(), "pct_below":pct_below.to_dict(), "measurements":timeframe.indices})
+    pct_below = ((abs_below / col_count).apply(np.nansum) /
+                 df.shape[0]).round(decimals=2)
+    return jsonify({"total_passings": d_sum.to_dict(), "pct_above": pct_above.to_dict(), "pct_below": pct_below.to_dict(), "measurements": timeframe.indices})
+
 
 @app.route('/coordinates')
 def get_coordinates():
-    return jsonify(DB.coordinates.to_dict(orient='index'))
-    
+    return jsonify({'intersections': DB.coordinates.to_dict(orient='index')})
+
+
+@app.route('/FPD')
+def get_FDP():
+    return "Todo: Implement FPD and FPDLOF"
+
+
+@app.route('/events', methods=['POST'])
+def get_events():
+    json_data = get_json_data()
+    df = DB.events[json_data['starttime'] <= DB.events['starttime']]
+    df = df[df['endtime'] <= json_data['endtime']]
+    df = df.drop(['WIJK', 'WIJKCODE', 'LOKATIE', 'STADSDEEL'], axis=1)
+    return jsonify({'events': df.to_dict(orient='index')})
