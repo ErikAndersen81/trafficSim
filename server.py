@@ -21,6 +21,8 @@ def get_json_data():
         interval = int((endtime-starttime).total_seconds()/(60*15))
         graph_options = jsonData.get("graph_options", [])
         intersections = jsonData.get("intersections", [])
+        if 'all' in intersections:
+            intersections = DB.full.columns
         disturbances = bool(jsonData.get("disturbances", True))
         outliers = bool(jsonData.get("outliers", True))
         return {'starttime': starttime,
@@ -70,20 +72,6 @@ def get_data():
                     orient='list') for k in list(set(df.columns.get_level_values(0)))}
 
     for graph_option in json_data['graph_options']:
-        if graph_option == 'disturbances':
-            df = timeframe.in_timeframe(DB.disturbances)
-            x1 = timeframe.datetimes_to_idxs(df['starttime'])
-            x2 = timeframe.datetimes_to_idxs(df['endtime'])
-            df = df.assign(x1=x1, x2=x2)
-            df.loc[:, 'starttime'] = df['starttime'].astype(str)
-            df.loc[:, 'endtime'] = df['endtime'].astype(str)
-            rows = []
-            for _, row in df.iterrows():
-                lst = [row.location, row.type, row.starttime,
-                       row.endtime, row.x1, row.x2]
-                rows.append(lst)
-            data['disturbances'] = rows
-            continue
         if graph_option == 'mean':
             df = DB.mean.loc[:, json_data['intersections']]
         elif graph_option == 'median':
@@ -138,7 +126,6 @@ def get_FDP():
 @app.route('/events', methods=['POST'])
 def get_events():
     json_data = get_json_data()
-    df = DB.events[json_data['starttime'] <= DB.events['starttime']]
-    df = df[df['endtime'] <= json_data['endtime']]
-    df = df.drop(['WIJK', 'WIJKCODE', 'LOKATIE', 'STADSDEEL'], axis=1)
+    df = DB.events[(json_data['starttime'] <= DB.events['starttime']) & (
+        DB.events['endtime'] <= json_data['endtime'])]
     return jsonify({'events': df.to_dict(orient='index')})
