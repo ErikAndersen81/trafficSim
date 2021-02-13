@@ -59,8 +59,9 @@ class DB:
         # load railway disturbances data
         DB.disturbances = DB.load_simple_data('publicTransit')
 
-        # load events data
+        # load events (tweets, disturbances and other events) data
         DB.events = DB.load_simple_data('Events')
+
         # Reset cwd
         os.chdir(path)
 
