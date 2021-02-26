@@ -61,23 +61,24 @@ def get_data():
                 df = df.sum(axis=1, level=0, skipna=True)
                 data['maxVal'] = max(data['maxVal'], df.max().max())
                 df = df.where(pd.notnull(df), None)
-                data['pathData'][key] = {k: {k: df.loc[:, k].to_list()} for k in list(
-                    set(df.columns.get_level_values(0)))}
+                data['pathData'][key] = df.to_dict(orient='list')
             else:
                 data['maxVal'] = max(data['maxVal'], df.max(skipna=True).max())
                 # Replace NaN with None s.t. we get proper null values in the JSON once we jsonify the df.
                 df = df.where(pd.notnull(df), None)
                 # Build a dictionary from the multicolumn df
-                data['pathData'][key] = {k: df.loc[:, k].to_dict(
-                    orient='list') for k in list(set(df.columns.get_level_values(0)))}
+                data['pathData'][key] = {
+                    k[0]+' '+k[1]: v for k, v in df.to_dict(orient='list').items()}
 
     for graph_option in json_data['graph_options']:
         if graph_option == 'mean':
             df = DB.mean.loc[:, json_data['intersections']]
+            df = timeframe.trim(df)
+            prep_for_jsonify(df, graph_option)
         elif graph_option == 'median':
             df = DB.median.loc[:, json_data['intersections']]
-        df = timeframe.trim(df)
-        prep_for_jsonify(df, graph_option)
+            df = timeframe.trim(df)
+            prep_for_jsonify(df, graph_option)
 
     df = DB.full.loc[:, json_data['intersections']]
     df = timeframe.trim(df)
