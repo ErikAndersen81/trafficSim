@@ -28,8 +28,8 @@ class DB:
         DB.data_dir = os.getenv('TRAFFIC_DATA')
         df = DB.load_road_data('/aggregated_csv')
         # Fit df to whole weeks
-        rows_cutoff = len(df) % 672
-        df = df.iloc[rows_cutoff:, :]
+        rows_cutoff = df.shape[0] % 672
+        df = df.iloc[:df.shape[0]-rows_cutoff, :]
         DB.full = df
         # Reshape the DataFrame into a 3D numpy array (weeks at axis 0)
         # and use it to calculate the mean and standard deviation over

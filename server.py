@@ -74,21 +74,17 @@ def get_data():
         if graph_option == 'mean':
             df = DB.mean.loc[:, json_data['intersections']]
             df = timeframe.trim(df)
-            if json_data['bin_size'] > 1:
-                df = bin_df(df, json_data['bin_size'])
             prep_for_jsonify(df, graph_option)
         elif graph_option == 'median':
             df = DB.median.loc[:, json_data['intersections']]
             df = timeframe.trim(df)
-            if json_data['bin_size'] > 1:
-                df = bin_df(df, json_data['bin_size'])
             prep_for_jsonify(df, graph_option)
 
     df = DB.full.loc[:, json_data['intersections']]
     df = timeframe.trim(df)
     prep_for_jsonify(df, 'aggregated')
 
-    data['dates'] = timeframe.get_dates()[::json_data['bin_size']][:-1]
+    data['dates'] = timeframe.get_dates()[::json_data['bin_size']]
     if pd.isna(data['maxVal']):
         data['maxVal'] = 0
     return jsonify(**data)
@@ -96,7 +92,7 @@ def get_data():
 
 def bin_df(df, span):
     return pd.DataFrame([df.iloc[i:i+span].sum(axis=0)
-                         for i in range(0, df.shape[0], span)]).iloc[:-1:]
+                         for i in range(0, df.shape[0], span)])
 
 
 @app.route('/')
