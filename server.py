@@ -18,20 +18,16 @@ def get_json_data():
             "starttime", "2015-01-01 00:00:00"))
         endtime = pd.to_datetime(jsonData.get(
             "endtime", "2015-02-01 00:00:00"))
-        interval = int((endtime-starttime).total_seconds()/(60*15))
         graph_options = jsonData.get("graph_options", [])
         intersections = jsonData.get("intersections", [])
         if 'all' in intersections:
             intersections = DB.full.columns
-        disturbances = bool(jsonData.get("disturbances", True))
-        outliers = bool(jsonData.get("outliers", True))
+        bin_size = jsonData.get('bin_size', 1)
         return {'starttime': starttime,
                 'endtime': endtime,
-                'interval': interval,
+                'bin_size': bin_size,
                 'graph_options': graph_options,
                 'intersections': intersections,
-                'disturbances': disturbances,
-                'outliers': outliers
                 }
     except Exception as e:
         print(e)
@@ -59,11 +55,15 @@ def get_data():
         else:
             if aggregated:
                 df = df.sum(axis=1, level=0, skipna=True)
+                if json_data['bin_size'] > 1:
+                    df = bin_df(df, json_data['bin_size'])
                 data['maxVal'] = max(data['maxVal'], df.max().max())
                 df = df.where(pd.notnull(df), None)
                 data['pathData'][key] = df.to_dict(orient='list')
             else:
                 data['maxVal'] = max(data['maxVal'], df.max(skipna=True).max())
+                if json_data['bin_size'] > 1:
+                    df = bin_df(df, json_data['bin_size'])
                 # Replace NaN with None s.t. we get proper null values in the JSON once we jsonify the df.
                 df = df.where(pd.notnull(df), None)
                 # Build a dictionary from the multicolumn df
@@ -74,22 +74,29 @@ def get_data():
         if graph_option == 'mean':
             df = DB.mean.loc[:, json_data['intersections']]
             df = timeframe.trim(df)
+            if json_data['bin_size'] > 1:
+                df = bin_df(df, json_data['bin_size'])
             prep_for_jsonify(df, graph_option)
         elif graph_option == 'median':
             df = DB.median.loc[:, json_data['intersections']]
             df = timeframe.trim(df)
+            if json_data['bin_size'] > 1:
+                df = bin_df(df, json_data['bin_size'])
             prep_for_jsonify(df, graph_option)
 
     df = DB.full.loc[:, json_data['intersections']]
     df = timeframe.trim(df)
     prep_for_jsonify(df, 'aggregated')
 
-    data['interval'] = json_data['interval']
-    data['dates'] = timeframe.get_dates()
-
+    data['dates'] = timeframe.get_dates()[::json_data['bin_size']][:-1]
     if pd.isna(data['maxVal']):
         data['maxVal'] = 0
     return jsonify(**data)
+
+
+def bin_df(df, span):
+    return pd.DataFrame([df.iloc[i:i+span].sum(axis=0)
+                         for i in range(0, df.shape[0], span)]).iloc[:-1:]
 
 
 @app.route('/')
